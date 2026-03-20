@@ -139,6 +139,28 @@
                 osmBuildings = await Cesium.createOsmBuildingsAsync();
                 scene.primitives.add(osmBuildings);
                 osmBuildings.maximumScreenSpaceError = 8;
+                osmBuildings.style = new Cesium.Cesium3DTileStyle({
+                    color: {
+                        conditions: [
+                            ["${feature['cesium#color']} !== undefined", "color(${feature['cesium#color']})"],
+                            ["${building} === 'apartments'", "color('#E8A87C')"],
+                            ["${building} === 'commercial'", "color('#7EC8E3')"],
+                            ["${building} === 'office'", "color('#5B9BD5')"],
+                            ["${building} === 'retail'", "color('#F5D76E')"],
+                            ["${building} === 'industrial'", "color('#95A5A6')"],
+                            ["${building} === 'hotel'", "color('#BB8FCE')"],
+                            ["${building} === 'hospital'", "color('#E74C3C')"],
+                            ["${building} === 'school'", "color('#3498DB')"],
+                            ["${building} === 'church'", "color('#D4A574')"],
+                            ["${building} === 'warehouse'", "color('#BDC3C7')"],
+                            ["${building} === 'residential'", "color('#F0B27A')"],
+                            ["${building} === 'house'", "color('#F5CBA7')"],
+                            ["${building} === 'garage'", "color('#ABB2B9')"],
+                            ["${building} === 'roof'", "color('#CACFD2')"],
+                            ["true", "color('#D5DBDB')"]
+                        ]
+                    }
+                });
                 document.getElementById('status').textContent = 'Gebäude geladen';
             } catch (err) {
                 console.error(err);
