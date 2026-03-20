@@ -132,24 +132,13 @@
         // Performance: Tile-Optimierung
         viewer.maximumScreenSpaceError = 16;
 
-        // OSM Buildings laden
+        // OSM Buildings laden (mit Texturen/Fassaden)
         let osmBuildings = null;
         async function loadOSMBuildings() {
             try {
                 osmBuildings = await Cesium.createOsmBuildingsAsync();
                 scene.primitives.add(osmBuildings);
-                osmBuildings.maximumScreenSpaceError = 32;
-                osmBuildings.style = new Cesium.Cesium3DTileStyle({
-                    color: {
-                        conditions: [
-                            ["${building} === 'apartments'", "color('#FF6B6B')"],
-                            ["${building} === 'commercial'", "color('#4ECDC4')"],
-                            ["${building} === 'office'", "color('#45B7D1')"],
-                            ["${building} === 'retail'", "color('#F7DC6F')"],
-                            ["true", "color('#E8E8E8')"]
-                        ]
-                    }
-                });
+                osmBuildings.maximumScreenSpaceError = 8;
                 document.getElementById('status').textContent = 'Gebäude geladen';
             } catch (err) {
                 console.error(err);
