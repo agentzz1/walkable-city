@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Walkable 3D City Explorer</title>
+    <script src="https://cesium.com/downloads/cesiumjs/releases/1.139.1/Build/Cesium/Cesium.js"></script>
+    <link href="https://cesium.com/downloads/cesiumjs/releases/1.139.1/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+    <style>
+        html, body, #cesiumContainer {
+            width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        #ui {
+            position: absolute; top: 10px; left: 10px; z-index: 100;
+            background: rgba(0,0,0,0.8); color: white; padding: 20px;
+            border-radius: 12px; backdrop-filter: blur(10px);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            max-width: 300px;
+        }
+        #ui h2 { margin: 0 0 15px 0; font-size: 18px; color: #4ECDC4; }
+        #ui h3 { margin: 15px 0 10px 0; font-size: 14px; color: #95A5A6; }
+        #ui p { margin: 8px 0; font-size: 12px; line-height: 1.4; }
+        .mode-btn {
+            padding: 10px 20px; margin: 5px 2px; cursor: pointer;
+            border: none; border-radius: 6px; font-weight: bold;
+            font-size: 13px; transition: all 0.3s ease;
+        }
+        .mode-btn:hover { transform: translateY(-2px); }
+        .mode-btn.fly { background: linear-gradient(135deg, #3498db, #2980b9); color: white; }
+        .mode-btn.walk { background: linear-gradient(135deg, #2ecc71, #27ae60); color: white; }
+        .mode-btn.active { box-shadow: 0 0 15px rgba(255,255,255,0.5); }
+        select {
+            width: 100%; padding: 8px; margin: 5px 0; border-radius: 4px;
+            border: 1px solid #555; background: #333; color: white;
+            font-size: 13px;
+        }
+        .instructions {
+            background: rgba(255,255,255,0.1); padding: 10px;
+            border-radius: 6px; margin-top: 10px;
+        }
+        .key {
+            background: #444; padding: 2px 6px; border-radius: 3px;
+            font-family: monospace; font-size: 11px;
+        }
+        #loading {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.9); color: white; padding: 30px;
+            border-radius: 12px; text-align: center; z-index: 200;
+        }
+        .spinner {
+            border: 4px solid #333; border-top: 4px solid #4ECDC4;
+            border-radius: 50%; width: 40px; height: 40px;
+            animation: spin 1s linear infinite; margin: 0 auto 15px;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div id="loading">
+        <div class="spinner"></div>
+        <h3>Lade 3D Stadt...</h3>
+        <p>Bitte warten...</p>
+    </div>
+
+    <div id="cesiumContainer"></div>
+
+    <div id="ui">
+        <h2>🏙️ 3D City Explorer</h2>
+
+        <h3>📍 Stadt wählen</h3>
+        <select id="citySelect">
+            <option value="berlin">Berlin, Deutschland</option>
+            <option value="paris">Paris, Frankreich</option>
+            <option value="london">London, UK</option>
+            <option value="newyork">New York, USA</option>
+            <option value="tokyo">Tokyo, Japan</option>
+        </select>
+
+        <h3>🎮 Steuerung</h3>
+        <button class="mode-btn fly active" id="flyBtn">✈️ Flug-Modus</button>
+        <button class="mode-btn walk" id="walkBtn">🚶 Geh-Modus</button>
+
+        <div class="instructions" id="walkInstructions" style="display: none;">
+            <p><strong>Geh-Modus aktiv:</strong></p>
+            <p><span class="key">W</span> <span class="key">A</span> <span class="key">S</span> <span class="key">D</span> = Bewegen</p>
+            <p><span class="key">Maus</span> = Umschauen</p>
+            <p><span class="key">Leertaste</span> = Hoch</p>
+            <p><span class="key">Shift</span> = Runter</p>
+            <p><span class="key">ESC</span> = Maus freigeben</p>
+            <p style="color: #F39C12; font-size: 11px;">Klicke auf den Bildschirm für Maus-Lock</p>
+        </div>
+
+        <div class="instructions" id="flyInstructions">
+            <p><strong>Flug-Modus aktiv:</strong></p>
+            <p>Maus-Links ziehen = Drehen</p>
+            <p>Maus-Links + Rechts = Neigen</p>
+            <p>Mausrad = Zoom</p>
+        </div>
+
+        <h3>ℹ️ Status</h3>
+        <p id="status">Initialisiere...</p>
+    </div>
+
+    <script>
+        // ============================================
+        // HIER DEINEN CESIUM ION TOKEN EINFÜGEN
+        // Kostenlos: https://cesium.com/ion/signup
+        // ============================================
+        Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIxNTBmYjlmZi0xZDZkLTQzODctYWRiNS0yYTI5YTQ1YmY5YzAiLCJpZCI6NDA2NDE5LCJpYXQiOjE3NzM5NjkwNjN9.Bbfc8OWsEul_A6mE2uB57NT_GUjAZCza3onN5ITFOJM';
+
+        // ============================================
+        // STADT-KOORDINATEN
+        // ============================================
+        const cities = {
+            berlin:   { lon: 13.3777,  lat: 52.5163,  height: 500, name: 'Berlin' },
+            paris:    { lon: 2.2945,   lat: 48.8584,  height: 500, name: 'Paris' },
+            london:   { lon: -0.1276,  lat: 51.5074,  height: 500, name: 'London' },
+            newyork:  { lon: -74.0060, lat: 40.7128,  height: 500, name: 'New York' },
+            tokyo:    { lon: 139.6917, lat: 35.6895,  height: 500, name: 'Tokyo' }
+        };
+
+        // ============================================
+        // VIEWER ERSTELLEN
+        // ============================================
+        const viewer = new Cesium.Viewer('cesiumContainer', {
+            terrain: Cesium.Terrain.fromWorldTerrain(),
+            baseLayerPicker: true,
+            geocoder: true,
+            homeButton: true,
+            sceneModePicker: true,
+            navigationHelpButton: true,
+            animation: false,
+            timeline: false,
+            fullscreenButton: true
+        });
+
+        // ============================================
+        // OSM BUILDINGS LADEN
+        // ============================================
+        async function loadOSMBuildings() {
+            try {
+                const tileset = await Cesium.createOsmBuildingsAsync();
+                viewer.scene.primitives.add(tileset);
+
+                tileset.style = new Cesium.Cesium3DTileStyle({
+                    color: {
+                        conditions: [
+                            ["${building} === 'apartments'",  "color('#FF6B6B')"],
+                            ["${building} === 'commercial'",  "color('#4ECDC4')"],
+                            ["${building} === 'office'",      "color('#45B7D1')"],
+                            ["${building} === 'retail'",      "color('#F7DC6F')"],
+                            ["${building} === 'industrial'",  "color('#95A5A6')"],
+                            ["${building} === 'hotel'",       "color('#BB8FCE')"],
+                            ["${building} === 'hospital'",    "color('#E74C3C')"],
+                            ["${building} === 'school'",      "color('#3498DB')"],
+                            ["true",                          "color('#E8E8E8')"]
+                        ]
+                    }
+                });
+
+                document.getElementById('status').textContent = 'Gebäude geladen ✓';
+            } catch (err) {
+                console.error(err);
+                document.getElementById('status').textContent = 'Fehler: ' + err.message;
+            }
+        }
+
+        // ============================================
+        // KAMERA ZU STADT FLIEGEN
+        // ============================================
+        function flyToCity(key) {
+            const c = cities[key];
+            viewer.camera.flyTo({
+                destination: Cesium.Cartesian3.fromDegrees(c.lon, c.lat, c.height),
+                orientation: {
+                    heading: Cesium.Math.toRadians(0),
+                    pitch: Cesium.Math.toRadians(-15),
+                    roll: 0
+                },
+                duration: 3
+            });
+            document.getElementById('status').textContent = 'Fliege zu ' + c.name + '...';
+            setTimeout(() => {
+                document.getElementById('status').textContent = 'Bereit: ' + c.name;
+            }, 3500);
+        }
+
+        // ============================================
+        // WALKABLE CONTROLLER
+        // ============================================
+        let walkMode = false;
+        let pointerLocked = false;
+        const keys = {};
+        const canvas = viewer.canvas;
+
+        document.addEventListener('keydown', e => { keys[e.code] = true; });
+        document.addEventListener('keyup',   e => { keys[e.code] = false; });
+
+        canvas.addEventListener('click', () => {
+            if (walkMode && !pointerLocked) canvas.requestPointerLock();
+        });
+
+        document.addEventListener('pointerlockchange', () => {
+            pointerLocked = document.pointerLockElement === canvas;
+            if (walkMode) {
+                document.getElementById('status').textContent =
+                    pointerLocked ? 'Geh-Modus: Maus gesperrt' : 'Geh-Modus: Klicken für Maus-Lock';
+            }
+        });
+
+        document.addEventListener('mousemove', e => {
+            if (walkMode && pointerLocked) {
+                const cam = viewer.camera;
+                cam.setView({
+                    orientation: {
+                        heading: cam.heading + e.movementX * 0.002,
+                        pitch: Cesium.Math.clamp(cam.pitch - e.movementY * 0.002, -1.5, 1.5),
+                        roll: 0
+                    }
+                });
+            }
+        });
+
+        viewer.scene.preRender.addEventListener(() => {
+            if (!walkMode) return;
+            const cam = viewer.camera;
+            const speed = 3;
+            let f = 0, r = 0, u = 0;
+            if (keys['KeyW']) f += speed;
+            if (keys['KeyS']) f -= speed;
+            if (keys['KeyA']) r -= speed;
+            if (keys['KeyD']) r += speed;
+            if (keys['Space']) u += speed;
+            if (keys['ShiftLeft']) u -= speed;
+            if (f || r || u) {
+                cam.moveForward(f);
+                cam.moveRight(r);
+                cam.moveUp(u);
+            }
+        });
+
+        document.addEventListener('keydown', e => {
+            if (e.code === 'Escape' && walkMode) {
+                pointerLocked = false;
+                document.exitPointerLock();
+            }
+        });
+
+        // ============================================
+        // MODUS-TOGGLE
+        // ============================================
+        function setFlyMode() {
+            walkMode = false;
+            pointerLocked = false;
+            document.exitPointerLock();
+            const c = viewer.scene.screenSpaceCameraController;
+            c.enableRotate = true; c.enableTilt = true;
+            c.enableLook = true;  c.enableZoom = true;
+            c.enableTranslate = true;
+            document.getElementById('flyBtn').classList.add('active');
+            document.getElementById('walkBtn').classList.remove('active');
+            document.getElementById('flyInstructions').style.display = 'block';
+            document.getElementById('walkInstructions').style.display = 'none';
+            document.getElementById('status').textContent = 'Flug-Modus aktiv';
+        }
+
+        function setWalkMode() {
+            walkMode = true;
+            const cam = viewer.camera;
+            const carto = Cesium.Cartographic.fromCartesian(cam.positionWC);
+            const ground = viewer.scene.globe.getHeight(carto) || 0;
+            cam.position = Cesium.Cartesian3.fromRadians(carto.longitude, carto.latitude, ground + 1.7);
+            cam.setView({ orientation: { heading: cam.heading, pitch: -0.3, roll: 0 } });
+            const c = viewer.scene.screenSpaceCameraController;
+            c.enableRotate = false; c.enableTilt = false;
+            c.enableLook = false;  c.enableZoom = false;
+            c.enableTranslate = false;
+            document.getElementById('flyBtn').classList.remove('active');
+            document.getElementById('walkBtn').classList.add('active');
+            document.getElementById('flyInstructions').style.display = 'none';
+            document.getElementById('walkInstructions').style.display = 'block';
+            document.getElementById('status').textContent = 'Geh-Modus: Klicken für Maus-Lock';
+        }
+
+        document.getElementById('flyBtn').addEventListener('click', setFlyMode);
+        document.getElementById('walkBtn').addEventListener('click', setWalkMode);
+        document.getElementById('citySelect').addEventListener('change', e => flyToCity(e.target.value));
+
+        // ============================================
+        // START
+        // ============================================
+        (async () => {
+            try {
+                document.getElementById('status').textContent = 'Lade OSM Buildings...';
+                await loadOSMBuildings();
+                flyToCity('berlin');
+                setTimeout(() => { document.getElementById('loading').style.display = 'none'; }, 2000);
+            } catch (err) {
+                console.error(err);
+                document.getElementById('loading').innerHTML =
+                    '<h3>⚠️ Fehler</h3><p>' + err.message + '</p>' +
+                    '<p style="font-size:12px;color:#95A5A6;">Token prüfen: https://cesium.com/ion/signup</p>';
+            }
+        })();
+    </script>
+</body>
+</html>
