@@ -13,10 +13,11 @@
         }
         #ui {
             position: absolute; top: 10px; left: 10px; z-index: 100;
-            background: rgba(0,0,0,0.8); color: white; padding: 20px;
-            border-radius: 12px; backdrop-filter: blur(10px);
+            background: rgba(0,0,0,0.85); color: white; padding: 20px;
+            border-radius: 12px;
             box-shadow: 0 4px 20px rgba(0,0,0,0.3);
             max-width: 300px;
+            will-change: auto;
         }
         #ui h2 { margin: 0 0 15px 0; font-size: 18px; color: #4ECDC4; }
         #ui h3 { margin: 15px 0 10px 0; font-size: 14px; color: #95A5A6; }
@@ -24,9 +25,8 @@
         .mode-btn {
             padding: 10px 20px; margin: 5px 2px; cursor: pointer;
             border: none; border-radius: 6px; font-weight: bold;
-            font-size: 13px; transition: all 0.3s ease;
+            font-size: 13px; transition: box-shadow 0.2s;
         }
-        .mode-btn:hover { transform: translateY(-2px); }
         .mode-btn.fly { background: linear-gradient(135deg, #3498db, #2980b9); color: white; }
         .mode-btn.walk { background: linear-gradient(135deg, #2ecc71, #27ae60); color: white; }
         .mode-btn.active { box-shadow: 0 0 15px rgba(255,255,255,0.5); }
@@ -70,6 +70,7 @@
 
         <h3>📍 Stadt wählen</h3>
         <select id="citySelect">
+            <option value="karlsruhe">Karlsruhe, Deutschland</option>
             <option value="berlin">Berlin, Deutschland</option>
             <option value="paris">Paris, Frankreich</option>
             <option value="london">London, UK</option>
@@ -113,6 +114,7 @@
         // STADT-KOORDINATEN
         // ============================================
         const cities = {
+            karlsruhe: { lon: 8.4037,   lat: 49.0069,  height: 500, name: 'Karlsruhe' },
             berlin:   { lon: 13.3777,  lat: 52.5163,  height: 500, name: 'Berlin' },
             paris:    { lon: 2.2945,   lat: 48.8584,  height: 500, name: 'Paris' },
             london:   { lon: -0.1276,  lat: 51.5074,  height: 500, name: 'London' },
@@ -299,7 +301,7 @@
             try {
                 document.getElementById('status').textContent = 'Lade OSM Buildings...';
                 await loadOSMBuildings();
-                flyToCity('berlin');
+                flyToCity('karlsruhe');
                 setTimeout(() => { document.getElementById('loading').style.display = 'none'; }, 2000);
             } catch (err) {
                 console.error(err);
