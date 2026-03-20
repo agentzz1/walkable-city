@@ -225,18 +225,23 @@
         viewer.scene.preRender.addEventListener(() => {
             if (!walkMode) return;
             const cam = viewer.camera;
-            const speed = 3;
-            let f = 0, r = 0, u = 0;
+            const speed = 2;
+            let f = 0, r = 0;
             if (keys['KeyW']) f += speed;
             if (keys['KeyS']) f -= speed;
             if (keys['KeyA']) r -= speed;
             if (keys['KeyD']) r += speed;
-            if (keys['Space']) u += speed;
-            if (keys['ShiftLeft']) u -= speed;
-            if (f || r || u) {
+            if (f || r) {
                 cam.moveForward(f);
                 cam.moveRight(r);
-                cam.moveUp(u);
+            }
+            // Kamera auf Bodenhöhe klemmen
+            const pos = Cesium.Cartographic.fromCartesian(cam.positionWC);
+            const groundH = viewer.scene.globe.getHeight(pos) || 0;
+            const targetH = groundH + 1.7;
+            const currentH = pos.height;
+            if (currentH < targetH || currentH > targetH + 2) {
+                cam.position = Cesium.Cartesian3.fromRadians(pos.longitude, pos.latitude, targetH);
             }
         });
 
