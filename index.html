@@ -42,20 +42,77 @@ const sc=v.scene,g=sc.globe,cam=v.camera,cvs=v.canvas,ssc=sc.screenSpaceCameraCo
 g.enableLighting=g.dynamicAtmosphereLighting=g.showGroundAtmosphere=g.translucency.enabled=sc.fog.enabled=sc.skyAtmosphere.show=sc.highDynamicRange=sc.postProcessStages.fxaa.enabled=0;
 sc.msaaSamples=1;v.maximumScreenSpaceError=24;
 
+// Prozeduraler Fassaden-Shader
+const facadeShader=new Cesium.CustomShader({
+uniforms:{
+u_time:{type:Cesium.UniformType.FLOAT,value:0},
+u_windowColor:{type:Cesium.UniformType.VEC3,value:new Cesium.Cartesian3(0.85,0.9,1.0)},
+u_windowLit:{type:Cesium.UniformType.VEC3,value:new Cesium.Cartesian3(1.0,0.95,0.7)},
+u_frameColor:{type:Cesium.UniformType.VEC3,value:new Cesium.Cartesian3(0.25,0.25,0.28)},
+u_wallColors:{type:Cesium.UniformType.VEC3,value:new Cesium.Cartesian3(0.75,0.72,0.68)},
+u_roofColor:{type:Cesium.UniformType.VEC3,value:new Cesium.Cartesian3(0.35,0.32,0.30)}
+},
+lightingModel:Cesium.LightingModel.PBR,
+fragmentShaderText:`
+float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y);}
+
+void fragmentMain(FragmentInput fsInput,inout czm_modelMaterial material){
+vec3 pos=fsInput.attributes.positionMC;
+vec3 normal=fsInput.attributes.normalMC;
+float h=abs(pos.z);
+float seed=hash(vec2(floor(pos.x*0.5),floor(pos.y*0.5)));
+
+vec3 wallColor=u_wallColors;
+wallColor+=noise(pos.xy*3.0)*0.08-0.04;
+wallColor+=seed*0.12-0.06;
+
+float isWall=step(0.5,abs(normal.z));
+float isSide=step(0.5,abs(normal.x)+abs(normal.y))*(1.0-isWall);
+
+float windowW=0.35;
+float windowH=0.55;
+float gapX=0.12;
+float gapY=0.15;
+
+vec2 wGrid=vec2(3.0,4.0+floor(h*0.8));
+vec2 wUV=fract(pos.xy*vec2(wGrid.x/(1.0+windowW),wGrid.y/(1.0+windowH)));
+float wFrame=step(gapX,wUV.x)*step(gapX,wUV.y)*step(wUV.x,1.0-gapX)*step(wUV.y,1.0-gapY);
+
+float windowSeed=hash(floor(pos.xy*vec2(wGrid.x,wGrid.y)));
+float lit=step(0.35,windowSeed);
+float flicker=sin(u_time*2.0+windowSeed*6.28)*0.05+0.95;
+
+vec3 wCol=mix(u_windowColor,u_windowLit,lit*flicker);
+vec3 frameCol=u_frameColor;
+vec3 windowFinal=mix(frameCol,wCol,wFrame);
+
+float isWindowArea=isSide*step(0.8,mod(h,1.5)/1.5);
+float groundFloor=1.0-step(0.8,mod(h,3.0)/3.0);
+vec3 doorColor=u_frameColor*0.7;
+vec3 groundDetail=mix(wallColor,doorColor,groundFloor*isSide*step(abs(fract(pos.x*2.0)-0.5),0.15)*step(abs(fract(h*0.8)-0.5),0.2));
+
+vec3 roofCol=u_roofColor;
+roofCol+=noise(pos.xy*5.0)*0.1;
+
+float isRoof=step(0.5,max(0.0,normal.z));
+vec3 finalColor=mix(mix(mix(wallColor,windowFinal,isWindowArea),groundDetail,1.0-isWindowArea),roofCol,isRoof);
+
+finalColor=pow(finalColor,vec3(1.0/2.2));
+material.diffuse=finalColor;
+material.alpha=1.0;
+}`
+});
+
 let bld;
 async function loadBld(){
 bld=await Cesium.createOsmBuildingsAsync();sc.primitives.add(bld);
 bld.maximumScreenSpaceError=16;
-bld.style=new Cesium.Cesium3DTileStyle({color:{conditions:[
-["${feature['cesium#color']}!==undefined","color(${feature['cesium#color']})"],
-["${building}==='apartments'","color('#E8A87C')"],["${building}==='commercial'","color('#7EC8E3')"],
-["${building}==='office'","color('#5B9BD5')"],["${building}==='retail'","color('#F5D76E')"],
-["${building}==='industrial'","color('#95A5A6')"],["${building}==='hotel'","color('#BB8FCE')"],
-["${building}==='hospital'","color('#E74C3C')"],["${building}==='school'","color('#3498DB')"],
-["${building}==='residential'","color('#F0B27A')"],["${building}==='house'","color('#F5CBA7')"],
-["true","color('#D5DBDB')"]]}});
+bld.customShader=facadeShader;
 t.textContent='Bereit';
 }
+
+setInterval(()=>{facadeShader.setUniform('u_time',performance.now()*0.001)},100);
 
 function fly(k){const c=CT[k];cam.flyTo({destination:Cesium.Cartesian3.fromDegrees(c.x,c.y,c.z),orientation:{heading:0,pitch:Cesium.Math.toRadians(-15),roll:0},duration:1.5});st('→ '+c.n);setTimeout(()=>st(c.n),2e3)}
 
